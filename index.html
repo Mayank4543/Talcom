@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talc Lead Form - Phonexa Spec</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22c55e;
+      --danger: #ef4444;
+      --border: #374151;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(160deg, #020617, #0f172a);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 880px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+      padding: 14px;
+    }
+
+    legend {
+      color: #d1d5db;
+      font-size: 13px;
+      padding: 0 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      color: #d1d5db;
+    }
+
+    label .req {
+      color: var(--danger);
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #052e16;
+      border: 0;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      display: none;
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+
+    .status.ok {
+      display: block;
+      background: #052e16;
+      color: #bbf7d0;
+      border: 1px solid #15803d;
+    }
+
+    .status.error {
+      display: block;
+      background: #450a0a;
+      color: #fecaca;
+      border: 1px solid #b91c1c;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Talc Lead Form</h1>
+    <p>Fields below mirror the Phonexa Lab 115 - Talcum posting spec. Required fields are marked with
+      <span style="color:#ef4444">*</span>. Submission is sent by email — it is not posted live to Phonexa from this
+      page.
+    </p>
+
+    <form id="leadForm">
+
+      <fieldset>
+        <legend>Required (Phonexa spec)</legend>
+        <div class="grid">
+          <div class="field">
+            <label for="firstName">First Name <span class="req">*</span></label>
+            <input id="firstName" name="firstName" required />
+          </div>
+          <div class="field">
+            <label for="lastName">Last Name <span class="req">*</span></label>
+            <input id="lastName" name="lastName" required />
+          </div>
+          <div class="field">
+            <label for="phoneNumber">Phone Number <span class="req">*</span></label>
+            <input id="phoneNumber" name="phoneNumber" placeholder="5555555555" required />
+            <span class="small">10-11 digits, numeric only</span>
+          </div>
+          <div class="field">
+            <label for="email">Email <span class="req">*</span></label>
+            <input id="email" name="email" type="email" required />
+          </div>
+          <div class="field full">
+            <label for="trustedFormURL">Trusted Form Certificate URL <span class="req">*</span></label>
+            <input id="trustedFormURL" name="trustedFormURL" type="url" placeholder="https://cert.trustedform.com/..."
+              required />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Optional (Phonexa spec)</legend>
+        <div class="grid">
+          <div class="field">
+            <label for="zip">Zip</label>
+            <input id="zip" name="zip" placeholder="90210" />
+          </div>
+          <div class="field">
+            <label for="state">State (2-letter)</label>
+            <input id="state" name="state" maxlength="2" placeholder="CA" />
+          </div>
+          <div class="field">
+            <label for="city">City</label>
+            <input id="city" name="city" placeholder="Los Angeles" />
+          </div>
+          <div class="field full">
+            <label for="address">Address</label>
+            <input id="address" name="address" placeholder="123 Easy Street" />
+          </div>
+        </div>
+      </fieldset>
+
+      <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <input type="checkbox" id="testMode" name="testMode" style="width:auto;" />
+        Send as test lead (testMode)
+      </label>
+
+      <button id="submitBtn" type="submit">Submit Lead</button>
+      <div id="status" class="status" aria-live="polite"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("leadForm");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submitBtn");
+
+    function setStatus(message, type) {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+    function digitsOnly(value) {
+      return (value || "").toString().replace(/\D/g, "");
+    }
+
+    function validPhone(phone) {
+      const d = digitsOnly(phone);
+      return d.length === 10 || d.length === 11;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      statusEl.className = "status";
+
+      const data = new FormData(form);
+      const get = (name) => (data.get(name) || "").toString().trim();
+
+      const phoneNumber = digitsOnly(get("phoneNumber"));
+
+      // --- Required field validation, per Phonexa spec ---
+      const required = { firstName: get("firstName"), lastName: get("lastName"), email: get("email"), trustedFormURL: get("trustedFormURL") };
+      const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
+
+      if (!validPhone(get("phoneNumber"))) {
+        setStatus("Phone number must be 10-11 digits.", "error");
+        return;
+      }
+      if (missing.length) {
+        setStatus(`Missing required field(s): ${missing.join(", ")}`, "error");
+        return;
+      }
+
+      const payload = {
+        firstName: get("firstName"),
+        lastName: get("lastName"),
+        phoneNumber,
+        email: get("email"),
+        trustedFormURL: get("trustedFormURL"),
+        zip: get("zip"),
+        state: get("state"),
+        city: get("city"),
+        address: get("address"),
+        testMode: document.getElementById("testMode").checked ? "1" : "",
+      };
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting...";
+
+      try {
+        const emailRes = await fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!emailRes.ok) {
+          const errBody = await emailRes.json().catch(() => ({}));
+          throw new Error(errBody.error || "Email delivery failed.");
+        }
+
+        setStatus("Lead submitted successfully and emailed for processing.", "ok");
+        form.reset();
+      } catch (error) {
+        setStatus(`Submission failed: ${error.message}`, "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit Lead";
+      }
+    });
+  </script>
+</body>
+
+</html>
