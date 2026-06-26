@@ -144,7 +144,10 @@ export default async function handler(req, res) {
       state,
       city: data.city || "",
       address: data.address || "",
-      ...(userIp && { userIp }), // only include if we got a valid IP
+      ...(userIp && { userIp }),
+      // only include if we got a valid IP
+      testMode: "1",
+      testSold: "1",
     };
 
     // ── POST to Phonexa ────────────────────────────────────────────
