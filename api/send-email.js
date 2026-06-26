@@ -1,22 +1,13 @@
 import nodemailer from "nodemailer";
-
 const PHONEXA_CONFIG = {
-  apiId: process.env.PHONEXA_API_ID || "",
+  apiId:       process.env.PHONEXA_API_ID       || "",
   apiPassword: process.env.PHONEXA_API_PASSWORD || "",
-  productId: process.env.PHONEXA_PRODUCT_ID || "191",
-  price: process.env.PHONEXA_PRICE || "0.01",
+  productId:   process.env.PHONEXA_PRODUCT_ID   || "191",
+  price:       process.env.PHONEXA_PRICE        || "0.01",
 };
 
 function digitsOnly(value) {
   return (value || "").toString().replace(/\D/g, "");
-}
-
-function buildTParString(tPar) {
-  if (!tPar || typeof tPar !== "object") return "";
-  return Object.entries(tPar)
-    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== "")
-    .map(([k, v]) => `tPar[${k}]=${encodeURIComponent(v)}`)
-    .join("&");
 }
 
 function getClientIp(req) {
@@ -37,50 +28,83 @@ export default async function handler(req, res) {
 
     const data = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
 
-    // --- Required fields per Phonexa Lab 115 - Talcum spec ---
+    // ── Required-field validation per Phonexa Lab 115 – Talcum spec ──
     const phoneNumber = digitsOnly(data?.phoneNumber);
     const requiredErrors = {};
-    if (!data?.firstName) requiredErrors.firstName = "required";
-    if (!data?.lastName) requiredErrors.lastName = "required";
-    if (!data?.email) requiredErrors.email = "required";
+
+    if (!data?.firstName)      requiredErrors.firstName      = "required";
+    if (!data?.lastName)       requiredErrors.lastName       = "required";
+    if (!data?.email)          requiredErrors.email          = "required";
     if (!data?.trustedFormURL) requiredErrors.trustedFormURL = "required";
     if (!(phoneNumber.length === 10 || phoneNumber.length === 11)) {
-      requiredErrors.phoneNumber = "required, must be 10-11 digits";
+      requiredErrors.phoneNumber = "required, must be 10–11 digits";
     }
     if (!PHONEXA_CONFIG.apiId || !PHONEXA_CONFIG.apiPassword) {
-      requiredErrors.apiId = "missing server credentials (PHONEXA_API_ID / PHONEXA_API_PASSWORD env vars)";
+      requiredErrors.credentials =
+        "missing server credentials (PHONEXA_API_ID / PHONEXA_API_PASSWORD env vars)";
     }
 
     if (Object.keys(requiredErrors).length) {
       return res.status(400).json({ status: 4, errors: [requiredErrors] });
     }
 
+    // ── Optional field helpers ─────────────────────────────────────
     const userIp = data?.userIp || getClientIp(req);
-    const tParString = buildTParString(data?.tPar);
+    const state  = (data?.state || "").toUpperCase(); // spec: two capital letters
 
-    // Full lead, mapped exactly to Phonexa field names, ready to be
-    // posted to https://leads-inst603-client.phonexa.com/lead/ if/when
-    // you switch from email delivery to a direct server-side API call.
+    // Full payload mapped to Phonexa field names.
+    // Switch the comment block below to POST directly instead of emailing.
     const phonexaLead = {
-      apiId: PHONEXA_CONFIG.apiId,
-      apiPassword: PHONEXA_CONFIG.apiPassword,
-      productId: PHONEXA_CONFIG.productId,
-      price: PHONEXA_CONFIG.price,
+      apiId:          PHONEXA_CONFIG.apiId,
+      apiPassword:    PHONEXA_CONFIG.apiPassword,
+      productId:      PHONEXA_CONFIG.productId,
+      price:          PHONEXA_CONFIG.price,
+      // Required
       phoneNumber,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
+      firstName:      data.firstName,
+      lastName:       data.lastName,
+      email:          data.email,
       trustedFormURL: data.trustedFormURL,
-      zip: data.zip || "",
-      state: data.state || "",
-      city: data.city || "",
-      address: data.address || "",
-
+      // Optional – address
+      zip:            data.zip     || "",
+      state,
+      city:           data.city    || "",
+      address:        data.address || "",
+      // Optional – userIp (auto-detected server-side if not provided)
       userIp,
-      testMode: data.testMode === "1" ? "1" : "",
-
     };
 
+    // ── Email body – all fields included ──────────────────────────
+    const or = (v) => v || "—";
+
+    const message = `
+New Talc Lead (Phonexa Lab 115 – Talcum spec)
+
+━━━ REQUIRED FIELDS ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+First Name:        ${or(phonexaLead.firstName)}
+Last Name:         ${or(phonexaLead.lastName)}
+Phone Number:      ${or(phonexaLead.phoneNumber)}
+Email:             ${or(phonexaLead.email)}
+Trusted Form URL:  ${or(phonexaLead.trustedFormURL)}
+
+━━━ OPTIONAL – ADDRESS ━━━━━━━━━━━━━━━━━━━━━━━━
+Zip:               ${or(phonexaLead.zip)}
+State:             ${or(phonexaLead.state)}
+City:              ${or(phonexaLead.city)}
+Address:           ${or(phonexaLead.address)}
+
+━━━ OPTIONAL – TRACKING ━━━━━━━━━━━━━━━━━━━━━━━
+User IP:           ${or(phonexaLead.userIp)}
+
+
+API ID:            ${phonexaLead.apiId}
+Product ID:        ${phonexaLead.productId}
+Price:             ${phonexaLead.price}
+
+https://leads-inst603-client.phonexa.com/lead/
+`.trim();
+
+    // ── Send email ────────────────────────────────────────────────
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -89,38 +113,17 @@ export default async function handler(req, res) {
       },
     });
 
-    const message = `
-New Talc Lead (Phonexa Lab 115 spec)
-
-REQUIRED FIELDS
-First Name: ${phonexaLead.firstName}
-Last Name: ${phonexaLead.lastName}
-Phone Number: ${phonexaLead.phoneNumber}
-Email: ${phonexaLead.email}
-Trusted Form URL: ${phonexaLead.trustedFormURL}
-
-
-
-User IP: ${phonexaLead.userIp || "N/A"}
-Test Mode: ${phonexaLead.testMode || "0"}
-
-
-
-ACCOUNT (for reference if posting to Phonexa manually)
-productId: ${phonexaLead.productId}
-price: ${phonexaLead.price}
-`;
-
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: process.env.LEAD_RECEIVER_EMAIL || "mailtoakash@gmail.com",
-      subject: `New Talc Lead - ${phonexaLead.firstName} ${phonexaLead.lastName}`.trim(),
-      text: message,
+      from:    process.env.EMAIL_USER,
+      to:      process.env.LEAD_RECEIVER_EMAIL || "mailtoakash@gmail.com",
+      subject: `New Talc Lead – ${phonexaLead.firstName} ${phonexaLead.lastName}`.trim(),
+      text:    message,
     });
 
-    res.status(200).json({ success: true });
+    return res.status(200).json({ success: true });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Email failed" });
+    console.error("send-email handler error:", error);
+    return res.status(500).json({ error: "Email failed" });
   }
 }

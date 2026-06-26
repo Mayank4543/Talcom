@@ -157,13 +157,15 @@
 <body>
   <div class="container">
     <h1>Talc Lead Form</h1>
-    <p>Fields below mirror the Phonexa Lab 115 - Talcum posting spec. Required fields are marked with
+    <p>
+      Fields below mirror the Phonexa Lab 115 - Talcum posting spec. Required fields are marked with
       <span style="color:#ef4444">*</span>. Submission is sent by email — it is not posted live to Phonexa from this
       page.
     </p>
 
     <form id="leadForm">
 
+      <!-- ── REQUIRED ──────────────────────────────────────── -->
       <fieldset>
         <legend>Required (Phonexa spec)</legend>
         <div class="grid">
@@ -178,7 +180,7 @@
           <div class="field">
             <label for="phoneNumber">Phone Number <span class="req">*</span></label>
             <input id="phoneNumber" name="phoneNumber" placeholder="5555555555" required />
-            <span class="small">10-11 digits, numeric only</span>
+            <span class="small">10–11 digits, numeric only</span>
           </div>
           <div class="field">
             <label for="email">Email <span class="req">*</span></label>
@@ -192,16 +194,18 @@
         </div>
       </fieldset>
 
+      <!-- ── OPTIONAL – ADDRESS ────────────────────────────── -->
       <fieldset>
-        <legend>Optional (Phonexa spec)</legend>
+        <legend>Optional – Address (Phonexa spec)</legend>
         <div class="grid">
           <div class="field">
             <label for="zip">Zip</label>
-            <input id="zip" name="zip" placeholder="90210" />
+            <input id="zip" name="zip" placeholder="90210" maxlength="8" />
+            <span class="small">5–8 numeric digits</span>
           </div>
           <div class="field">
-            <label for="state">State (2-letter)</label>
-            <input id="state" name="state" maxlength="2" placeholder="CA" />
+            <label for="state">State (2-letter, uppercase)</label>
+            <input id="state" name="state" maxlength="2" placeholder="CA" style="text-transform:uppercase;" />
           </div>
           <div class="field">
             <label for="city">City</label>
@@ -214,12 +218,9 @@
         </div>
       </fieldset>
 
-      <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-        <input type="checkbox" id="testMode" name="testMode" style="width:auto;" />
-        Send as test lead (testMode)
-      </label>
 
-      <button id="submitBtn" type="submit">Submit Lead</button>
+
+      <button id="submitBtn" type="submit">Submit </button>
       <div id="status" class="status" aria-live="polite"></div>
     </form>
   </div>
@@ -228,6 +229,13 @@
     const form = document.getElementById("leadForm");
     const statusEl = document.getElementById("status");
     const submitBtn = document.getElementById("submitBtn");
+
+    // Auto-uppercase state field on input
+    document.getElementById("state").addEventListener("input", function () {
+      const pos = this.selectionStart;
+      this.value = this.value.toUpperCase();
+      this.setSelectionRange(pos, pos);
+    });
 
     function setStatus(message, type) {
       statusEl.textContent = message;
@@ -243,6 +251,11 @@
       return d.length === 10 || d.length === 11;
     }
 
+    function validZip(zip) {
+      if (!zip) return true; // optional
+      return /^\d{5,8}$/.test(zip);
+    }
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       statusEl.className = "status";
@@ -251,35 +264,52 @@
       const get = (name) => (data.get(name) || "").toString().trim();
 
       const phoneNumber = digitsOnly(get("phoneNumber"));
+      const zip = get("zip");
+      const state = get("state").toUpperCase();
 
-      // --- Required field validation, per Phonexa spec ---
-      const required = { firstName: get("firstName"), lastName: get("lastName"), email: get("email"), trustedFormURL: get("trustedFormURL") };
-      const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
-
+      // ── Validation ──────────────────────────────────────────
       if (!validPhone(get("phoneNumber"))) {
-        setStatus("Phone number must be 10-11 digits.", "error");
+        setStatus("Phone number must be 10–11 digits (numbers only).", "error");
         return;
       }
+
+      if (zip && !validZip(zip)) {
+        setStatus("Zip must be 5–8 numeric digits.", "error");
+        return;
+      }
+
+      if (state && state.length !== 2) {
+        setStatus("State must be exactly 2 letters (e.g. CA).", "error");
+        return;
+      }
+
+      const required = {
+        firstName: get("firstName"),
+        lastName: get("lastName"),
+        email: get("email"),
+        trustedFormURL: get("trustedFormURL"),
+      };
+      const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
       if (missing.length) {
         setStatus(`Missing required field(s): ${missing.join(", ")}`, "error");
         return;
       }
 
+      // ── Build payload ────────────────────────────────────────
       const payload = {
         firstName: get("firstName"),
         lastName: get("lastName"),
         phoneNumber,
         email: get("email"),
         trustedFormURL: get("trustedFormURL"),
-        zip: get("zip"),
-        state: get("state"),
+        zip,
+        state,
         city: get("city"),
         address: get("address"),
-        testMode: document.getElementById("testMode").checked ? "1" : "",
       };
 
       submitBtn.disabled = true;
-      submitBtn.textContent = "Submitting...";
+      submitBtn.textContent = "Submitting…";
 
       try {
         const emailRes = await fetch("/api/send-email", {
