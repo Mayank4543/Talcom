@@ -128,6 +128,8 @@ export default async function handler(req, res) {
 
     const userIp = getRealIp(req);
 
+    // ── Build Phonexa payload ──────────────────────────────────────
+    // NOTE: testMode is NOT included — omitting it means live mode
     const phonexaLead = {
       apiId: PHONEXA_CONFIG.apiId,
       apiPassword: PHONEXA_CONFIG.apiPassword,
@@ -142,7 +144,7 @@ export default async function handler(req, res) {
       state,
       city: data.city || "",
       address: data.address || "",
-      userIp,
+      ...(userIp && { userIp }), // only include if we got a valid IP
     };
 
     // ── POST to Phonexa ────────────────────────────────────────────
@@ -152,8 +154,8 @@ export default async function handler(req, res) {
     });
 
     let postStatus = "",
-      postResponse = "";
-    let postRes;
+      postResponse = "",
+      postRes;
     try {
       postRes = await fetch(PHONEXA_POST_URL, {
         method: "POST",
@@ -175,27 +177,30 @@ export default async function handler(req, res) {
     postStatus = `HTTP ${postRes.status} – ${postRes.statusText}`;
     console.log("Phonexa POST result:", postStatus, "|", postResponse);
 
-    // Phonexa always returns HTTP 200 — must check JSON status field
+    // ── Parse Phonexa response ─────────────────────────────────────
+    // status 1 = sold (accepted)
+    // status 2 = reject
+    // status 4 = error/validation
     let phonexaResult = {};
     try {
       phonexaResult = JSON.parse(postResponse);
     } catch (_) {}
 
-    const accepted =
-      phonexaResult.status === 0 ||
-      (typeof phonexaResult.status_text === "string" &&
-        phonexaResult.status_text.toLowerCase() === "accept");
+    const isSold =
+      phonexaResult.status === 1 &&
+      phonexaResult.status_text?.toLowerCase() === "sold";
 
-    if (!postRes.ok || !accepted) {
+    if (!isSold) {
+      console.warn("Lead not sold:", phonexaResult);
       return res.status(502).json({
-        error: "Phonexa rejected the lead.",
-        status: postStatus,
+        error: "Phonexa did not accept the lead.",
         phonexaStatus: phonexaResult.status_text || "unknown",
+        phonexaErrors: phonexaResult.errors || null,
         response: postResponse,
       });
     }
 
-    // ── Email ──────────────────────────────────────────────────────
+    // ── Email (only sent when lead is sold) ────────────────────────
     const or = (v) => v || "—";
 
     const message = `
@@ -204,7 +209,9 @@ Post URL: ${PHONEXA_POST_URL}
 
 ━━━ LEAD POST RESULT ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Status:            ${postStatus}
-Response:          ${postResponse || "—"}
+Phonexa Status:    ${phonexaResult.status_text} (status ${phonexaResult.status})
+Lead ID:           ${phonexaResult.lead_id || "—"}
+Price:             ${phonexaResult.price || "—"}
 
 ━━━ REQUIRED FIELDS ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 First Name:        ${or(phonexaLead.firstName)}
@@ -224,7 +231,7 @@ User IP:           ${or(phonexaLead.userIp)}
 
 API ID:            ${phonexaLead.apiId}
 Product ID:        ${phonexaLead.productId}
-Price:             ${phonexaLead.price}
+Price Submitted:   ${phonexaLead.price}
     `.trim();
 
     const transporter = nodemailer.createTransport({
@@ -239,12 +246,13 @@ Price:             ${phonexaLead.price}
       from: process.env.EMAIL_USER,
       to: process.env.LEAD_RECEIVER_EMAIL || "mailtoakash@gmail.com",
       subject:
-        `New Talc Lead – ${phonexaLead.firstName} ${phonexaLead.lastName}`.trim(),
+        `✅ New Talc Lead SOLD – ${phonexaLead.firstName} ${phonexaLead.lastName}`.trim(),
       text: message,
     });
 
     return res.status(200).json({
       success: true,
+      leadId: phonexaResult.lead_id,
       leadPostStatus: postStatus,
       leadPostResponse: postResponse,
     });
